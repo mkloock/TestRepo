@@ -7,12 +7,18 @@ Open `index.html` in any modern browser to play.
 
 ## Controls
 
+**Keyboard**
 - `←` / `→` — move
 - `↓` — soft drop
 - `↑` / `X` — rotate clockwise
 - `Z` — rotate counter-clockwise
 - `Space` — hard drop
 - `P` — pause
+
+**Touch (iPhone / Android)**
+- On-screen D-pad with dedicated Move / Rotate / Soft-drop / DROP buttons
+- Hold left/right/down to auto-repeat
+- On the board itself: tap to rotate, swipe horizontally to move, swipe down to soft-drop, flick down quickly to hard-drop
 
 ## Features
 
