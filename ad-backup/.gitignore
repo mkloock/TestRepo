@@ -1,0 +1,3 @@
+infrastructure/parameters.json
+*.snapshot.json
+diff.json

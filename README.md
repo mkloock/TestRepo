@@ -1,5 +1,16 @@
+TestRepo
+========
+
+This repository contains two unrelated projects:
+
+- [`index.html`](./index.html) - **Lego Tetris**, a browser game (described below).
+- [`ad-backup/`](./ad-backup/) - **AD Backup & Restore on Azure**, a PowerShell
+  + Bicep solution that snapshots Active Directory to immutable Azure Blob
+  Storage, diffs snapshots, and supports authoritative restore after
+  compromise. See [`ad-backup/README.md`](./ad-backup/README.md).
+
 Lego Tetris
-===========
+-----------
 
 A browser Tetris game rendered with Lego-brick styled blocks (studs, bevels, highlights).
 
