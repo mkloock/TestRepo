@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lego Tetris</title>
+<style>
+  :root {
+    --cell: 32px;
+    --bg: #1a1f2e;
+    --board-bg: #0f1320;
+    --grid-line: rgba(255,255,255,0.04);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(ellipse at top, #2a3147, var(--bg));
+    color: #e8ecf5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .game {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  h1 {
+    margin: 0 0 16px;
+    font-size: 28px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #ffd23f, #ff6b6b, #4ecdc4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-align: center;
+  }
+  .board-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  canvas {
+    background: var(--board-bg);
+    border: 4px solid #2a3147;
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.04);
+    display: block;
+  }
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 180px;
+  }
+  .panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .panel h2 {
+    margin: 0 0 8px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #8b95b0;
+    font-weight: 600;
+  }
+  .stat {
+    font-size: 24px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .preview {
+    width: 100%;
+    height: 120px;
+    display: block;
+  }
+  .controls {
+    font-size: 12px;
+    line-height: 1.8;
+    color: #b4bcd0;
+  }
+  .controls b {
+    color: #ffd23f;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    background: rgba(255,210,63,0.1);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 6px;
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15,19,32,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    gap: 12px;
+    backdrop-filter: blur(4px);
+  }
+  .overlay h3 {
+    margin: 0;
+    font-size: 32px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .overlay p { margin: 0; color: #b4bcd0; }
+  button {
+    background: linear-gradient(180deg, #ffd23f, #ff9f1c);
+    color: #1a1f2e;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-size: 13px;
+    box-shadow: 0 4px 0 #c47c0a, 0 6px 12px rgba(0,0,0,0.3);
+    transition: transform 0.05s;
+  }
+  button:active { transform: translateY(2px); box-shadow: 0 2px 0 #c47c0a, 0 3px 6px rgba(0,0,0,0.3); }
+  .board-container { position: relative; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="game">
+    <div class="board-wrap">
+      <h1>Lego Tetris</h1>
+      <div class="board-container">
+        <canvas id="board" width="320" height="640"></canvas>
+        <div id="overlay" class="overlay">
+          <h3 id="overlay-title">Lego Tetris</h3>
+          <p id="overlay-text">Stack the bricks. Clear the lines.</p>
+          <button id="start-btn">Start</button>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar">
+      <div class="panel">
+        <h2>Score</h2>
+        <div class="stat" id="score">0</div>
+      </div>
+      <div class="panel">
+        <h2>Lines</h2>
+        <div class="stat" id="lines">0</div>
+      </div>
+      <div class="panel">
+        <h2>Level</h2>
+        <div class="stat" id="level">1</div>
+      </div>
+      <div class="panel">
+        <h2>Next</h2>
+        <canvas id="preview" class="preview" width="160" height="120"></canvas>
+      </div>
+      <div class="panel controls">
+        <h2>Controls</h2>
+        <div><b>&larr; &rarr;</b>Move</div>
+        <div><b>&darr;</b>Soft drop</div>
+        <div><b>&uarr;/X</b>Rotate</div>
+        <div><b>Z</b>Rotate CCW</div>
+        <div><b>Space</b>Hard drop</div>
+        <div><b>P</b>Pause</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const COLS = 10;
+  const ROWS = 20;
+  const CELL = 32;
+
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const preview = document.getElementById('preview');
+  const pctx = preview.getContext('2d');
+
+  const scoreEl = document.getElementById('score');
+  const linesEl = document.getElementById('lines');
+  const levelEl = document.getElementById('level');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayText = document.getElementById('overlay-text');
+  const startBtn = document.getElementById('start-btn');
+
+  // Tetromino definitions — each piece has a set of rotation matrices.
+  const PIECES = {
+    I: { color: '#4ecdc4', shapes: [
+      [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+      [[0,0,1,0],[0,0,1,0],[0,0,1,0],[0,0,1,0]],
+      [[0,0,0,0],[0,0,0,0],[1,1,1,1],[0,0,0,0]],
+      [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]],
+    ]},
+    O: { color: '#ffd23f', shapes: [
+      [[1,1],[1,1]],
+      [[1,1],[1,1]],
+      [[1,1],[1,1]],
+      [[1,1],[1,1]],
+    ]},
+    T: { color: '#a06cd5', shapes: [
+      [[0,1,0],[1,1,1],[0,0,0]],
+      [[0,1,0],[0,1,1],[0,1,0]],
+      [[0,0,0],[1,1,1],[0,1,0]],
+      [[0,1,0],[1,1,0],[0,1,0]],
+    ]},
+    S: { color: '#6bd968', shapes: [
+      [[0,1,1],[1,1,0],[0,0,0]],
+      [[0,1,0],[0,1,1],[0,0,1]],
+      [[0,0,0],[0,1,1],[1,1,0]],
+      [[1,0,0],[1,1,0],[0,1,0]],
+    ]},
+    Z: { color: '#ff6b6b', shapes: [
+      [[1,1,0],[0,1,1],[0,0,0]],
+      [[0,0,1],[0,1,1],[0,1,0]],
+      [[0,0,0],[1,1,0],[0,1,1]],
+      [[0,1,0],[1,1,0],[1,0,0]],
+    ]},
+    J: { color: '#4d96ff', shapes: [
+      [[1,0,0],[1,1,1],[0,0,0]],
+      [[0,1,1],[0,1,0],[0,1,0]],
+      [[0,0,0],[1,1,1],[0,0,1]],
+      [[0,1,0],[0,1,0],[1,1,0]],
+    ]},
+    L: { color: '#ff9f1c', shapes: [
+      [[0,0,1],[1,1,1],[0,0,0]],
+      [[0,1,0],[0,1,0],[0,1,1]],
+      [[0,0,0],[1,1,1],[1,0,0]],
+      [[1,1,0],[0,1,0],[0,1,0]],
+    ]},
+  };
+  const PIECE_KEYS = Object.keys(PIECES);
+
+  let board, current, next, rotation, px, py;
+  let score, lines, level;
+  let dropInterval, dropTimer, lastTime;
+  let running = false;
+  let paused = false;
+  let gameOver = false;
+  let bag = [];
+
+  function newBoard() {
+    return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  }
+
+  // 7-bag randomizer for fair piece distribution
+  function nextFromBag() {
+    if (bag.length === 0) {
+      bag = [...PIECE_KEYS];
+      for (let i = bag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [bag[i], bag[j]] = [bag[j], bag[i]];
+      }
+    }
+    return bag.pop();
+  }
+
+  function spawn() {
+    current = next || nextFromBag();
+    next = nextFromBag();
+    rotation = 0;
+    const shape = PIECES[current].shapes[rotation];
+    px = Math.floor((COLS - shape[0].length) / 2);
+    py = current === 'I' ? -1 : 0;
+    if (collides(px, py, rotation)) {
+      gameOver = true;
+      running = false;
+      showOverlay('Game Over', `Score: ${score}`, 'Play again');
+    }
+    drawPreview();
+  }
+
+  function collides(nx, ny, nrot) {
+    const shape = PIECES[current].shapes[nrot];
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (!shape[y][x]) continue;
+        const bx = nx + x;
+        const by = ny + y;
+        if (bx < 0 || bx >= COLS || by >= ROWS) return true;
+        if (by >= 0 && board[by][bx]) return true;
+      }
+    }
+    return false;
+  }
+
+  function merge() {
+    const shape = PIECES[current].shapes[rotation];
+    const color = PIECES[current].color;
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          const by = py + y;
+          const bx = px + x;
+          if (by >= 0) board[by][bx] = color;
+        }
+      }
+    }
+  }
+
+  function clearLines() {
+    let cleared = 0;
+    for (let y = ROWS - 1; y >= 0; y--) {
+      if (board[y].every(c => c !== null)) {
+        board.splice(y, 1);
+        board.unshift(Array(COLS).fill(null));
+        cleared++;
+        y++;
+      }
+    }
+    if (cleared > 0) {
+      const pts = [0, 100, 300, 500, 800][cleared] * level;
+      score += pts;
+      lines += cleared;
+      const newLevel = Math.floor(lines / 10) + 1;
+      if (newLevel !== level) {
+        level = newLevel;
+        dropInterval = Math.max(80, 800 - (level - 1) * 70);
+      }
+      updateStats();
+    }
+  }
+
+  function lock() {
+    merge();
+    clearLines();
+    spawn();
+  }
+
+  function move(dx) {
+    if (collides(px + dx, py, rotation)) return;
+    px += dx;
+  }
+
+  function rotate(dir) {
+    const nrot = (rotation + dir + 4) % 4;
+    // Wall kicks — try offsets
+    const kicks = [0, -1, 1, -2, 2];
+    for (const k of kicks) {
+      if (!collides(px + k, py, nrot)) {
+        px += k;
+        rotation = nrot;
+        return;
+      }
+    }
+  }
+
+  function softDrop() {
+    if (!collides(px, py + 1, rotation)) {
+      py++;
+      score += 1;
+      updateStats();
+    } else {
+      lock();
+    }
+  }
+
+  function hardDrop() {
+    let dropped = 0;
+    while (!collides(px, py + 1, rotation)) {
+      py++;
+      dropped++;
+    }
+    score += dropped * 2;
+    updateStats();
+    lock();
+  }
+
+  function ghostY() {
+    let y = py;
+    while (!collides(px, y + 1, rotation)) y++;
+    return y;
+  }
+
+  // ---- Rendering ----
+
+  // Draws a single Lego brick cell with stud + bevel highlights.
+  function drawBrick(g, x, y, size, color, opts = {}) {
+    const { alpha = 1, stud = true } = opts;
+    g.save();
+    g.globalAlpha = alpha;
+
+    // Base fill
+    g.fillStyle = color;
+    g.fillRect(x, y, size, size);
+
+    // Top highlight
+    const topGrad = g.createLinearGradient(x, y, x, y + size);
+    topGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
+    topGrad.addColorStop(0.5, 'rgba(255,255,255,0)');
+    topGrad.addColorStop(1, 'rgba(0,0,0,0.35)');
+    g.fillStyle = topGrad;
+    g.fillRect(x, y, size, size);
+
+    // Bevel edges
+    g.strokeStyle = 'rgba(0,0,0,0.4)';
+    g.lineWidth = 1;
+    g.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
+
+    // Stud
+    if (stud) {
+      const cx = x + size / 2;
+      const cy = y + size / 2;
+      const r = size * 0.28;
+      // Stud base shadow
+      g.fillStyle = 'rgba(0,0,0,0.3)';
+      g.beginPath();
+      g.arc(cx, cy + 1, r, 0, Math.PI * 2);
+      g.fill();
+      // Stud body
+      const studGrad = g.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.1, cx, cy, r);
+      studGrad.addColorStop(0, 'rgba(255,255,255,0.55)');
+      studGrad.addColorStop(0.5, color);
+      studGrad.addColorStop(1, 'rgba(0,0,0,0.25)');
+      g.fillStyle = studGrad;
+      g.beginPath();
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+      g.fill();
+      // Stud ring
+      g.strokeStyle = 'rgba(0,0,0,0.35)';
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+      g.stroke();
+      // Stud highlight
+      g.strokeStyle = 'rgba(255,255,255,0.4)';
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(cx - r * 0.15, cy - r * 0.15, r * 0.7, Math.PI * 1.1, Math.PI * 1.7);
+      g.stroke();
+    }
+    g.restore();
+  }
+
+  function drawGrid() {
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    for (let x = 1; x < COLS; x++) {
+      ctx.beginPath();
+      ctx.moveTo(x * CELL + 0.5, 0);
+      ctx.lineTo(x * CELL + 0.5, ROWS * CELL);
+      ctx.stroke();
+    }
+    for (let y = 1; y < ROWS; y++) {
+      ctx.beginPath();
+      ctx.moveTo(0, y * CELL + 0.5);
+      ctx.lineTo(COLS * CELL, y * CELL + 0.5);
+      ctx.stroke();
+    }
+  }
+
+  function draw() {
+    ctx.fillStyle = '#0f1320';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawGrid();
+
+    // Settled bricks
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        if (board[y][x]) {
+          drawBrick(ctx, x * CELL, y * CELL, CELL, board[y][x]);
+        }
+      }
+    }
+
+    if (!current || gameOver) return;
+
+    const shape = PIECES[current].shapes[rotation];
+    const color = PIECES[current].color;
+
+    // Ghost piece
+    const gy = ghostY();
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          const bx = (px + x) * CELL;
+          const by = (gy + y) * CELL;
+          if (gy + y >= 0) {
+            drawBrick(ctx, bx, by, CELL, color, { alpha: 0.2, stud: false });
+          }
+        }
+      }
+    }
+
+    // Active piece
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          const by = py + y;
+          if (by >= 0) {
+            drawBrick(ctx, (px + x) * CELL, by * CELL, CELL, color);
+          }
+        }
+      }
+    }
+  }
+
+  function drawPreview() {
+    pctx.clearRect(0, 0, preview.width, preview.height);
+    if (!next) return;
+    const shape = PIECES[next].shapes[0];
+    const color = PIECES[next].color;
+    const size = 22;
+    // Trim the shape so we center visually
+    let minX = 4, maxX = -1, minY = 4, maxY = -1;
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    const w = (maxX - minX + 1) * size;
+    const h = (maxY - minY + 1) * size;
+    const ox = (preview.width - w) / 2 - minX * size;
+    const oy = (preview.height - h) / 2 - minY * size;
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          drawBrick(pctx, ox + x * size, oy + y * size, size, color);
+        }
+      }
+    }
+  }
+
+  function updateStats() {
+    scoreEl.textContent = score;
+    linesEl.textContent = lines;
+    levelEl.textContent = level;
+  }
+
+  function showOverlay(title, text, btn) {
+    overlayTitle.textContent = title;
+    overlayText.textContent = text;
+    startBtn.textContent = btn;
+    overlay.classList.remove('hidden');
+  }
+
+  function hideOverlay() {
+    overlay.classList.add('hidden');
+  }
+
+  function reset() {
+    board = newBoard();
+    score = 0;
+    lines = 0;
+    level = 1;
+    dropInterval = 800;
+    next = null;
+    bag = [];
+    gameOver = false;
+    paused = false;
+    spawn();
+    updateStats();
+  }
+
+  function loop(ts) {
+    if (!running) return;
+    if (!lastTime) lastTime = ts;
+    const dt = ts - lastTime;
+    lastTime = ts;
+    if (!paused && !gameOver) {
+      dropTimer += dt;
+      if (dropTimer >= dropInterval) {
+        dropTimer = 0;
+        if (!collides(px, py + 1, rotation)) {
+          py++;
+        } else {
+          lock();
+        }
+      }
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function start() {
+    reset();
+    hideOverlay();
+    running = true;
+    paused = false;
+    lastTime = 0;
+    dropTimer = 0;
+    requestAnimationFrame(loop);
+  }
+
+  function togglePause() {
+    if (!running || gameOver) return;
+    paused = !paused;
+    if (paused) {
+      showOverlay('Paused', 'Press P to resume', 'Resume');
+    } else {
+      hideOverlay();
+    }
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (paused && running && !gameOver) {
+      paused = false;
+      hideOverlay();
+    } else {
+      start();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'p' || e.key === 'P') {
+      togglePause();
+      e.preventDefault();
+      return;
+    }
+    if (!running || paused || gameOver) return;
+    switch (e.key) {
+      case 'ArrowLeft': move(-1); break;
+      case 'ArrowRight': move(1); break;
+      case 'ArrowDown': softDrop(); break;
+      case 'ArrowUp':
+      case 'x':
+      case 'X': rotate(1); break;
+      case 'z':
+      case 'Z': rotate(-1); break;
+      case ' ': hardDrop(); break;
+      default: return;
+    }
+    e.preventDefault();
+  });
+
+  // Initial idle render so the board is visible behind the overlay
+  board = newBoard();
+  draw();
+})();
+</script>
+</body>
+</html>
